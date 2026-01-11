@@ -6,44 +6,76 @@ import { ResultsDashboard } from "@/components/ResultsDashboard";
 import { HowItWorks } from "@/components/HowItWorks";
 import { Footer } from "@/components/Footer";
 import { motion, AnimatePresence } from "framer-motion";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
-// Mock analysis result for demonstration
-const mockResult = {
-  truthScore: 87,
-  naiveBayes: 85,
-  logisticRegression: 89,
-  confidence: "high" as const,
-  factors: [
-    { text: "Source credibility score: 92/100", type: "positive" as const, score: 92 },
-    { text: "Cross-verified with 8 independent sources", type: "positive" as const },
-    { text: "Statement matches official government records", type: "positive" as const },
-    { text: "Minor inconsistencies in date reporting", type: "negative" as const, score: 15 },
-    { text: "Author has verified journalist credentials", type: "positive" as const, score: 88 },
-    { text: "Publisher has 15-year track record", type: "positive" as const },
-  ],
-  sources: [
-    { name: "Associated Press", url: "https://ap.com", credibility: 98, date: "Jan 10, 2026", author: "J. Smith", verdict: "supports" as const },
-    { name: "Reuters", url: "https://reuters.com", credibility: 97, date: "Jan 10, 2026", verdict: "supports" as const },
-    { name: "BBC News", url: "https://bbc.com", credibility: 95, date: "Jan 9, 2026", author: "M. Johnson", verdict: "supports" as const },
-    { name: "Snopes", url: "https://snopes.com", credibility: 94, date: "Jan 10, 2026", verdict: "supports" as const },
-    { name: "PolitiFact", url: "https://politifact.com", credibility: 93, date: "Jan 9, 2026", verdict: "neutral" as const },
-  ],
-  analyzedText: "The news article discusses recent developments in international climate policy, citing multiple official sources and verified data from government agencies. The claims made align with published reports from the United Nations and corroborated by independent fact-checking organizations.",
-  analysisTime: 3.2,
-};
+interface AnalysisResult {
+  truthScore: number;
+  naiveBayes: number;
+  logisticRegression: number;
+  confidence: "high" | "medium" | "low";
+  factors: Array<{
+    text: string;
+    type: "positive" | "negative" | "neutral";
+    score?: number;
+  }>;
+  sources: Array<{
+    name: string;
+    url: string;
+    credibility: number;
+    date: string;
+    author?: string;
+    verdict: "supports" | "contradicts" | "neutral";
+  }>;
+  analyzedText: string;
+  analysisTime: number;
+}
 
 const Index = () => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [showResults, setShowResults] = useState(false);
+  const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
+  const { toast } = useToast();
 
   const handleAnalyze = async (content: string, method: string) => {
     setIsAnalyzing(true);
+    setShowResults(false);
     
-    // Simulate analysis time
-    await new Promise(resolve => setTimeout(resolve, 3000));
-    
-    setIsAnalyzing(false);
-    setShowResults(true);
+    const startTime = Date.now();
+
+    try {
+      const { data, error } = await supabase.functions.invoke('analyze-news', {
+        body: { text: content },
+      });
+
+      if (error) {
+        throw new Error(error.message || 'Failed to analyze news');
+      }
+
+      if (!data.success) {
+        throw new Error(data.error || 'Analysis failed');
+      }
+
+      const analysisTime = ((Date.now() - startTime) / 1000).toFixed(1);
+
+      const result: AnalysisResult = {
+        ...data.analysis,
+        analyzedText: content.length > 500 ? content.substring(0, 500) + '...' : content,
+        analysisTime: parseFloat(analysisTime),
+      };
+
+      setAnalysisResult(result);
+      setShowResults(true);
+    } catch (error) {
+      console.error('Analysis error:', error);
+      toast({
+        title: "Analysis Failed",
+        description: error instanceof Error ? error.message : "Failed to analyze the news content",
+        variant: "destructive",
+      });
+    } finally {
+      setIsAnalyzing(false);
+    }
   };
 
   return (
@@ -56,13 +88,13 @@ const Index = () => {
         <NewsInput onAnalyze={handleAnalyze} isAnalyzing={isAnalyzing} />
         
         <AnimatePresence>
-          {showResults && (
+          {showResults && analysisResult && (
             <motion.div
               initial={{ opacity: 0, y: 40 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -40 }}
             >
-              <ResultsDashboard result={mockResult} />
+              <ResultsDashboard result={analysisResult} />
             </motion.div>
           )}
         </AnimatePresence>
