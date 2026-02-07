@@ -14,7 +14,45 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      monitored_news: {
+        Row: {
+          category: string
+          created_at: string
+          headline: string
+          id: string
+          source_name: string
+          source_url: string
+          status: string
+          summary: string
+          truth_score: number
+          updated_at: string
+        }
+        Insert: {
+          category?: string
+          created_at?: string
+          headline: string
+          id?: string
+          source_name?: string
+          source_url?: string
+          status?: string
+          summary?: string
+          truth_score?: number
+          updated_at?: string
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          headline?: string
+          id?: string
+          source_name?: string
+          source_url?: string
+          status?: string
+          summary?: string
+          truth_score?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
